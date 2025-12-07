@@ -1,0 +1,239 @@
+{
+  "info": {
+    "_postman_id": "12345678-1234-1234-1234-123456789012",
+    "name": "Shipora Orders API",
+    "description": "Testing suite for Orders API - Sales Orders, Shipments, Rate History",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"sku\": \"ITEM-001\",\n      \"description\": \"Paquete pequeño\",\n      \"quantity\": 1,\n      \"weight\": 0.5,\n      \"length\": 20,\n      \"width\": 15,\n      \"height\": 10,\n      \"value\": 100\n    }\n  ],\n  \"shippingFrom\": {\n    \"country\": \"MX\",\n    \"city\": \"Mexico City\",\n    \"state\": \"CDMX\",\n    \"postalCode\": \"06600\",\n    \"address\": \"Calle Principal 123\",\n    \"personName\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"phone\": \"+52 55 1234 5678\"\n  },\n  \"shippingTo\": {\n    \"country\": \"US\",\n    \"city\": \"Los Angeles\",\n    \"state\": \"CA\",\n    \"postalCode\": \"90001\",\n    \"address\": \"123 Main St\",\n    \"personName\": \"Jane Smith\",\n    \"email\": \"jane@example.com\",\n    \"phone\": \"+1 213 555 1234\"\n  },\n  \"metadata\": {\n    \"source\": \"API\"\n  },\n  \"notes\": \"Handle with care - fragile items\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/orders",
+              "host": ["{{base_url}}"],
+              "path": ["orders"]
+            }
+          }
+        },
+        {
+          "name": "List User Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders?limit=50&skip=0",
+              "host": ["{{base_url}}"],
+              "path": ["orders"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Order by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders/{{order_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["orders", "{{order_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rate Queries",
+      "item": [
+        {
+          "name": "Record Rate Query",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"originCountry\": \"MX\",\n  \"originCity\": \"Mexico City\",\n  \"destinationCountry\": \"US\",\n  \"destinationCity\": \"Los Angeles\",\n  \"weight\": 0.5,\n  \"length\": 20,\n  \"width\": 15,\n  \"height\": 10,\n  \"declaredValue\": 100,\n  \"requestDuration\": 245,\n  \"quotes\": [\n    {\n      \"carrier\": \"paquete-express\",\n      \"serviceName\": \"Express Overnight\",\n      \"estimatedDays\": 1,\n      \"price\": 45.50,\n      \"currency\": \"USD\"\n    },\n    {\n      \"carrier\": \"estafeta\",\n      \"serviceName\": \"Standard\",\n      \"estimatedDays\": 3,\n      \"price\": 28.75,\n      \"currency\": \"USD\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/orders/rates/query",
+              "host": ["{{base_url}}"],
+              "path": ["orders", "rates", "query"]
+            }
+          }
+        },
+        {
+          "name": "Get Rate History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders/rates/history?limit=100&skip=0",
+              "host": ["{{base_url}}"],
+              "path": ["orders", "rates", "history"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "item": [
+        {
+          "name": "Carrier Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders/stats/carriers?startDate=2025-01-01&endDate=2025-12-31",
+              "host": ["{{base_url}}"],
+              "path": ["orders", "stats", "carriers"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-12-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Top Routes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orders/stats/routes?limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["orders", "stats", "routes"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "order_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

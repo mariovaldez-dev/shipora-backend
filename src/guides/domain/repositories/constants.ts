@@ -1,0 +1,1 @@
+export const GUIDE_REPOSITORY = Symbol('GUIDE_REPOSITORY');
