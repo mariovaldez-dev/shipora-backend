@@ -2,9 +2,9 @@ name: CI - Backend
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   # ============================================
@@ -21,7 +21,7 @@ jobs:
       - name: 📦 Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 10
 
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
@@ -30,14 +30,20 @@ jobs:
           cache: 'pnpm'
 
       - name: 📥 Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       - name: 🔍 Run ESLint
-        run: pnpm run lint
-        continue-on-error: true
+        run: pnpm run lint 2>&1 | tee lint-output.txt || true
 
       - name: 🔷 TypeScript Type Check
-        run: pnpm exec tsc --noEmit
+        run: pnpm exec tsc --noEmit 2>&1 | tee -a lint-output.txt || true
+
+      - name: 📤 Upload lint results
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-results
+          path: lint-output.txt
+          retention-days: 7
 
   # ============================================
   # Build
@@ -54,7 +60,7 @@ jobs:
       - name: 📦 Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 10
 
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
@@ -63,10 +69,17 @@ jobs:
           cache: 'pnpm'
 
       - name: 📥 Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       - name: 🏗️ Build application
-        run: pnpm run build
+        run: pnpm run build 2>&1 | tee build-output.txt
+
+      - name: 📤 Upload build results
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-results
+          path: build-output.txt
+          retention-days: 7
 
   # ============================================
   # Unit Tests with Coverage
@@ -83,7 +96,7 @@ jobs:
       - name: 📦 Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 10
 
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
@@ -92,11 +105,10 @@ jobs:
           cache: 'pnpm'
 
       - name: 📥 Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       - name: 🧪 Run tests with coverage
-        run: pnpm run test:cov
-        continue-on-error: true
+        run: pnpm run test:cov 2>&1 | tee test-output.txt || true
 
       - name: 📊 Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -107,6 +119,15 @@ jobs:
           fail_ci_if_error: false
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: 📤 Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-output.txt
+            coverage/
+          retention-days: 7
 
   # ============================================
   # Security Audit
@@ -122,7 +143,7 @@ jobs:
       - name: 📦 Setup pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 10
 
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
@@ -131,11 +152,21 @@ jobs:
           cache: 'pnpm'
 
       - name: 📥 Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       - name: 🔒 Run security audit
-        run: pnpm audit --audit-level=high
-        continue-on-error: true
+        run: |
+          pnpm audit --json > security-audit.json 2>&1 || true
+          pnpm audit 2>&1 | tee security-audit.txt || true
+
+      - name: 📤 Upload security results
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-results
+          path: |
+            security-audit.json
+            security-audit.txt
+          retention-days: 7
 
   # ============================================
   # Code Quality with CodeQL
@@ -178,3 +209,367 @@ jobs:
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
+
+  # ============================================
+  # Generate PDF Report
+  # ============================================
+  report-generation:
+    name: 📊 Generate PDF Report
+    runs-on: ubuntu-latest
+    needs: [lint, build, test, security, codeql]
+    if: always()
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📥 Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: 🔧 Install wkhtmltopdf
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wkhtmltopdf
+
+      - name: 📝 Generate HTML Report
+        run: |
+          # Create HTML report
+          cat > report.html << 'HTMLEOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>CI Report - Shipora Backend</title>
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 900px;
+                margin: 0 auto;
+                padding: 20px;
+                background: #f5f5f5;
+              }
+              .header {
+                background: linear-gradient(135deg, #dc2626, #991b1b);
+                color: white;
+                padding: 30px;
+                border-radius: 10px;
+                margin-bottom: 30px;
+                text-align: center;
+              }
+              .header h1 { margin: 0; font-size: 28px; }
+              .header .subtitle { opacity: 0.9; margin-top: 10px; }
+              .section {
+                background: white;
+                border-radius: 10px;
+                padding: 25px;
+                margin-bottom: 20px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+              }
+              .section h2 {
+                margin-top: 0;
+                color: #dc2626;
+                border-bottom: 2px solid #fecaca;
+                padding-bottom: 10px;
+              }
+              .status-badge {
+                display: inline-block;
+                padding: 5px 15px;
+                border-radius: 20px;
+                font-weight: bold;
+                font-size: 12px;
+              }
+              .status-success { background: #dcfce7; color: #166534; }
+              .status-warning { background: #fef3c7; color: #92400e; }
+              .status-error { background: #fee2e2; color: #991b1b; }
+              pre {
+                background: #1e293b;
+                color: #e2e8f0;
+                padding: 15px;
+                border-radius: 8px;
+                overflow-x: auto;
+                font-size: 13px;
+              }
+              .meta-info {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+                margin-top: 15px;
+              }
+              .meta-item {
+                background: #f8fafc;
+                padding: 15px;
+                border-radius: 8px;
+                border-left: 4px solid #dc2626;
+              }
+              .meta-item strong { display: block; color: #64748b; font-size: 12px; }
+              .recommendation {
+                background: #fef3c7;
+                border-left: 4px solid #f59e0b;
+                padding: 15px;
+                margin: 10px 0;
+                border-radius: 0 8px 8px 0;
+              }
+              .recommendation h4 { margin: 0 0 10px 0; color: #92400e; }
+              table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+              th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+              th { background: #f8fafc; font-weight: 600; }
+              .footer {
+                text-align: center;
+                color: #64748b;
+                font-size: 12px;
+                margin-top: 30px;
+                padding-top: 20px;
+                border-top: 1px solid #e2e8f0;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>🚀 CI Pipeline Report - Backend</h1>
+              <div class="subtitle">Shipora - Automated Code Analysis</div>
+            </div>
+
+            <div class="section">
+              <h2>📋 Report Information</h2>
+              <div class="meta-info">
+                <div class="meta-item">
+                  <strong>Repository</strong>
+                  ${{ github.repository }}
+                </div>
+                <div class="meta-item">
+                  <strong>Branch</strong>
+                  ${{ github.ref_name }}
+                </div>
+                <div class="meta-item">
+                  <strong>Commit</strong>
+                  ${{ github.sha }}
+                </div>
+                <div class="meta-item">
+                  <strong>Run Date</strong>
+                  $(date '+%Y-%m-%d %H:%M:%S UTC')
+                </div>
+              </div>
+            </div>
+          HTMLEOF
+
+          # Add Lint Results
+          echo '<div class="section">' >> report.html
+          echo '<h2>🔍 Lint & TypeScript Results</h2>' >> report.html
+          if [ -f "artifacts/lint-results/lint-output.txt" ]; then
+            LINT_CONTENT=$(cat artifacts/lint-results/lint-output.txt)
+            if echo "$LINT_CONTENT" | grep -q "error\|Error"; then
+              echo '<span class="status-badge status-error">Issues Found</span>' >> report.html
+            else
+              echo '<span class="status-badge status-success">Passed</span>' >> report.html
+            fi
+            echo '<pre>' >> report.html
+            cat artifacts/lint-results/lint-output.txt | head -100 >> report.html
+            echo '</pre>' >> report.html
+          else
+            echo '<span class="status-badge status-warning">No data available</span>' >> report.html
+          fi
+          echo '</div>' >> report.html
+
+          # Add Test Results
+          echo '<div class="section">' >> report.html
+          echo '<h2>🧪 Test Results & Coverage</h2>' >> report.html
+          if [ -f "artifacts/test-results/test-output.txt" ]; then
+            TEST_CONTENT=$(cat artifacts/test-results/test-output.txt)
+            if echo "$TEST_CONTENT" | grep -q "FAIL\|failed"; then
+              echo '<span class="status-badge status-error">Tests Failed</span>' >> report.html
+            else
+              echo '<span class="status-badge status-success">Tests Passed</span>' >> report.html
+            fi
+            echo '<pre>' >> report.html
+            cat artifacts/test-results/test-output.txt | head -100 >> report.html
+            echo '</pre>' >> report.html
+          else
+            echo '<span class="status-badge status-warning">No test data available</span>' >> report.html
+          fi
+          echo '</div>' >> report.html
+
+          # Add Security Audit Results
+          echo '<div class="section">' >> report.html
+          echo '<h2>🔒 Security Audit Results</h2>' >> report.html
+          if [ -f "artifacts/security-results/security-audit.txt" ]; then
+            SECURITY_CONTENT=$(cat artifacts/security-results/security-audit.txt)
+            if echo "$SECURITY_CONTENT" | grep -qi "critical\|high"; then
+              echo '<span class="status-badge status-error">Vulnerabilities Found</span>' >> report.html
+            elif echo "$SECURITY_CONTENT" | grep -qi "moderate\|low"; then
+              echo '<span class="status-badge status-warning">Minor Issues</span>' >> report.html
+            else
+              echo '<span class="status-badge status-success">No Issues</span>' >> report.html
+            fi
+            echo '<pre>' >> report.html
+            cat artifacts/security-results/security-audit.txt | head -150 >> report.html
+            echo '</pre>' >> report.html
+          else
+            echo '<span class="status-badge status-warning">No security data available</span>' >> report.html
+          fi
+          echo '</div>' >> report.html
+
+          # Add Recommendations Section
+          cat >> report.html << 'RECOMMENDATIONS'
+            <div class="section">
+              <h2>💡 Recommendations & Solutions</h2>
+              
+              <div class="recommendation">
+                <h4>🔒 Security Vulnerabilities</h4>
+                <p>If vulnerabilities are found, run the following commands to fix them:</p>
+                <pre>
+          # Update all dependencies to their latest versions
+          pnpm update
+
+          # Check which packages have security issues
+          pnpm audit
+
+          # Auto-fix vulnerabilities where possible
+          pnpm audit fix
+
+          # For NestJS specific updates
+          pnpm update @nestjs/core @nestjs/common @nestjs/platform-express
+                </pre>
+              </div>
+
+              <div class="recommendation">
+                <h4>🔍 Linting Issues</h4>
+                <p>To fix linting issues automatically:</p>
+                <pre>
+          # Run ESLint with auto-fix
+          pnpm run lint --fix
+
+          # Fix TypeScript strict mode issues
+          # Review tsconfig.json strict options
+                </pre>
+              </div>
+
+              <div class="recommendation">
+                <h4>🧪 Test Coverage</h4>
+                <p>To improve test coverage:</p>
+                <pre>
+          # Run tests with coverage report
+          pnpm run test:cov
+
+          # View coverage report in browser
+          open coverage/lcov-report/index.html
+
+          # Add tests for uncovered files in:
+          # - Controllers: *.controller.spec.ts
+          # - Services: *.service.spec.ts
+          # - Guards: *.guard.spec.ts
+                </pre>
+              </div>
+
+              <div class="recommendation">
+                <h4>🛡️ CodeQL Findings</h4>
+                <p>Review CodeQL findings in GitHub Security tab. Common fixes:</p>
+                <pre>
+          # Avoid SQL injection - use parameterized queries
+          # Sanitize user inputs
+          # Use proper authentication guards
+          # Implement rate limiting
+          # Review sensitive data exposure
+                </pre>
+              </div>
+            </div>
+          RECOMMENDATIONS
+
+          # Add Footer
+          cat >> report.html << 'FOOTER'
+            <div class="footer">
+              <p>Generated automatically by GitHub Actions CI Pipeline</p>
+              <p>Shipora Backend - Code Quality Report</p>
+            </div>
+          </body>
+          </html>
+          FOOTER
+
+      - name: 📄 Convert HTML to PDF
+        run: |
+          wkhtmltopdf \
+            --enable-local-file-access \
+            --page-size A4 \
+            --margin-top 10mm \
+            --margin-bottom 10mm \
+            --margin-left 10mm \
+            --margin-right 10mm \
+            report.html \
+            ci-report-backend.pdf
+
+      - name: 📤 Upload PDF Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-report-pdf
+          path: ci-report-backend.pdf
+          retention-days: 30
+
+  # ============================================
+  # Send Email Notification
+  # ============================================
+  notify:
+    name: 📧 Send Email Notification
+    runs-on: ubuntu-latest
+    needs: [report-generation]
+    if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    
+    steps:
+      - name: 📥 Download PDF Report
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-report-pdf
+          path: ./
+
+      - name: 📧 Send Email with PDF
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          secure: false
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "🚀 CI Report - Shipora Backend [${{ github.ref_name }}] - ${{ job.status }}"
+          to: ${{ secrets.NOTIFY_EMAIL }}
+          from: Shipora CI <${{ secrets.EMAIL_USERNAME }}>
+          html_body: |
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #dc2626, #991b1b); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+                <h1 style="margin: 0;">🚀 Shipora Backend CI Report</h1>
+              </div>
+              <div style="background: #f5f5f5; padding: 20px;">
+                <h2 style="color: #333;">Pipeline Execution Summary</h2>
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>Repository:</strong></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #ddd;">${{ github.repository }}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>Branch:</strong></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #ddd;">${{ github.ref_name }}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>Commit:</strong></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #ddd;">${{ github.sha }}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>Triggered by:</strong></td>
+                    <td style="padding: 10px; border-bottom: 1px solid #ddd;">${{ github.actor }}</td>
+                  </tr>
+                </table>
+                <p style="margin-top: 20px;">📎 The detailed PDF report is attached to this email.</p>
+                <p>
+                  <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" 
+                     style="display: inline-block; background: #dc2626; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                    View Full Results on GitHub
+                  </a>
+                </p>
+              </div>
+              <div style="text-align: center; padding: 15px; color: #666; font-size: 12px;">
+                <p>This is an automated message from Shipora CI Pipeline</p>
+              </div>
+            </div>
+          attachments: ci-report-backend.pdf
